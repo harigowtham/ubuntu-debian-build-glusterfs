@@ -107,25 +107,37 @@ cd ../glusterfs-${version}
 #debuild -S -sa -k${debuild_key}
 debuild -us -uc
 
+#sign the source files
+echo "Signing source package.."
+cd ../
+pwd
+debsign -k${debuild_key} glusterfs_${version}-${os}1~${flavor}1_amd64.changes
+
 echo "creating chroot for ${os} ${flavor}"
 sudo pbuilder create --distribution ${flavor} --mirror ${mirror} --debootstrapopts --keyring=/usr/share/keyrings/${os}-archive-keyring.gpg
 
 echo "Building glusterfs-${version} for ${os} ${flavor} using the chroot and .dsc we created"
 
 # have to use the .dsc file inside the ${os}${flavor} folder
-cd ../../
 sudo pbuilder --build --distribution ${flavor} --debootstrapopts --keyring=/usr/share/keyrings/${os}-archive-keyring.gpg glusterfs_${version}-${os}1~${flavor}1.dsc
 
 #move the packages to packages directory.
-mv build/glusterfs-*.deb packages/
+mv glusterfs-*.deb ../packages/
 
 echo "removing the chroot"
 rm -rf /var/cache/pbuilder/base.tgz
 
 echo "removing the unnecessary files"
-rm -rf build/glusterfs-${version}.tar.gz build/glusterfs_${version}.orig.tar.gz
+rm -rf glusterfs-${version}.tar.gz glusterfs_${version}.orig.tar.gz
 #check which are the files not necessary and delete them.
 #remove the source package and other such files
 #sign it
-#push it
+echo "Uploading the packages.."
+if [ "$os" == "ubuntu" ]; then
+        dput ppa:gluster/glusterfs-${series} glusterfs_${version}-${os}1~${flavor}1_amd64.changes
+else
+	cd ../packages
+	for i in glusterfs-*${version}-${release}*.deb; do reprepro includedeb $flavor $i; done
+	reprepro includedsc ${flavor} ../build/glusterfs_${version}-${os}1~${flavor}1.dsc
+fi
 echo "Done."
